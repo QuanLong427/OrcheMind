@@ -1,0 +1,45 @@
+# OrcheMind docker-compose — 一键启动深度研究 Agent
+#
+# 用法:
+#   docker compose run --rm orchemind              # TUI 交互（首次会启动配置向导）
+#   docker compose run --rm orchemind cli          # 传统 CLI 滚动模式
+#   docker compose run --rm orchemind run "问题"   # 单次研究
+#
+# 配置:
+#   1. 首次运行容器内会触发配置向导（生成 /app/.env）
+#   2. 或在宿主机项目根创建 .env，通过 env_file 注入
+#
+# 数据持久化:
+#   .orchemind/ → /app/.orchemind（DB、日志、artifact、memory、MCP 配置）
+#   skills/  → /app/skills（用户上传 skill）
+#
+# Sandbox:
+#   容器内默认 Local sandbox（ORCHEMIND_SANDBOX_EXECUTOR=local）。
+#   如需 Docker 隔离 sandbox，取消下方 docker.sock 挂载注释 + 改 .env:
+#     ORCHEMIND_SANDBOX_USE=orchemind.backend.agents.sandbox.docker.docker_sandbox_provider:DockerSandboxProvider
+#     ORCHEMIND_SANDBOX_EXECUTOR=local
+
+services:
+  orchemind:
+    build: .
+    image: orchemind:latest
+    container_name: orchemind
+    stdin_open: true      # 交互式输入
+    tty: true             # 终端色彩 + TUI 全屏
+    env_file:
+      - path: .env        # 宿主机 .env（不存在则忽略）
+        required: false
+    environment:
+      # 容器内默认开启 memory + multiagent（可被 .env 覆盖）
+      - ORCHEMIND_MEMORY_USE=default
+      - ORCHEMIND_MEMORY_PHASE2_ENABLED=true
+      - ORCHEMIND_MULTIAGENT_ENABLED=true
+    volumes:
+      - ./.orchemind:/app/.orchemind   # 运行时数据持久化（DB/logs/memory/artifacts）
+      - ./skills:/app/skills     # 用户 skill 持久化
+      - ./.env:/app/.env         # .env 持久化（Ctrl+B 面板可写回）
+      # Docker sandbox 模式：挂载宿主机 docker.sock（Linux/Mac）
+      # - /var/run/docker.sock:/var/run/docker.sock
+    # 默认无 command，走 ENTRYPOINT 的 orchemind（TUI 模式）
+    # 覆盖示例: docker compose run --rm orchemind cli
+    #           docker compose run --rm orchemind run "研究问题"
